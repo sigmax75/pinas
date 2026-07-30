@@ -62,6 +62,29 @@
         .archive-actions { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .archive-output { background: #0d0d1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 12px; line-height: 1.6; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; color: #aaaacc; }
 
+        /* File Browser */
+        .browser-section { margin-bottom: 40px; }
+        .browser-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+        .browser-tab { padding: 8px 20px; background: #16162b; border: 1px solid #2a2a4a; border-radius: 8px 8px 0 0; color: #8888aa; font-family: "Noto Sans JP", sans-serif; font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+        .browser-tab:hover { background: #1e1e3a; }
+        .browser-tab.active { background: #1e1e3a; color: #7c8cf8; border-bottom-color: #1e1e3a; }
+        .breadcrumb { display: flex; align-items: center; gap: 4px; padding: 10px 16px; background: #16162b; border: 1px solid #2a2a4a; border-radius: 8px; margin-bottom: 8px; font-size: 13px; flex-wrap: wrap; }
+        .breadcrumb-item { color: #7c8cf8; cursor: pointer; text-decoration: none; }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-sep { color: #3a3a5e; }
+        .breadcrumb-current { color: #c0c0e0; }
+        .file-list { border: 1px solid #2a2a4a; border-radius: 8px; overflow: hidden; }
+        .file-item { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid #222244; cursor: default; transition: background 0.15s; gap: 12px; }
+        .file-item:last-child { border-bottom: none; }
+        .file-item:hover { background: #1e1e36; }
+        .file-item.dir-item { cursor: pointer; }
+        .file-icon { font-size: 18px; width: 28px; text-align: center; flex-shrink: 0; }
+        .file-name { flex: 1; font-size: 14px; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dir-item .file-name { color: #7c8cf8; }
+        .file-meta { font-size: 12px; color: #666688; white-space: nowrap; display: flex; gap: 16px; }
+        .file-meta-size { min-width: 70px; text-align: right; }
+        .file-empty { padding: 32px; text-align: center; color: #666688; font-size: 14px; }
+
         .empty-message { text-align: center; padding: 32px; color: #666688; font-size: 14px; }
         .hidden-element { display: none !important; }
         .message { margin-top: 12px; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
@@ -108,6 +131,17 @@
                     <span id="cold-files">{{ cold_files }}</span> files
                 </div>
             </div>
+        </div>
+
+        <!-- File Browser -->
+        <h2 class="section-title">File Browser</h2>
+        <div class="browser-section">
+            <div class="browser-tabs">
+                <button id="tab-hot" class="browser-tab active" data-storage="hot">SSD (Hot)</button>
+                <button id="tab-cold" class="browser-tab" data-storage="cold">HDD (Cold)</button>
+            </div>
+            <div id="breadcrumb" class="breadcrumb"></div>
+            <div id="file-list" class="file-list"></div>
         </div>
 
         <!-- Search -->
@@ -277,6 +311,101 @@
                 btnRun.disabled = false;
             });
         }
+
+        /* File Browser */
+        var currentStorage = 'hot';
+        var currentBrowsePath = '';
+
+        document.querySelectorAll('.browser-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.browser-tab').forEach(function(t) { t.classList.remove('active'); });
+                this.classList.add('active');
+                currentStorage = this.getAttribute('data-storage');
+                currentBrowsePath = '';
+                loadDirectory(currentStorage, '');
+            });
+        });
+
+        function loadDirectory(storage, path) {
+            currentStorage = storage;
+            currentBrowsePath = path;
+
+            fetch('/api/browse?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(path))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        document.getElementById('file-list').innerHTML = '<div class="file-empty">' + escapeHtml(data.error) + '</div>';
+                        return;
+                    }
+                    renderBreadcrumb(data.breadcrumb, storage);
+                    renderFileList(data.items, storage);
+                })
+                .catch(function() {
+                    document.getElementById('file-list').innerHTML = '<div class="file-empty">Failed to load</div>';
+                });
+        }
+
+        function renderBreadcrumb(crumbs, storage) {
+            var container = document.getElementById('breadcrumb');
+            var html = '';
+            for (var i = 0; i < crumbs.length; i++) {
+                if (i > 0) html += '<span class="breadcrumb-sep">/</span>';
+                if (i === crumbs.length - 1) {
+                    html += '<span class="breadcrumb-current">' + escapeHtml(crumbs[i].name) + '</span>';
+                } else {
+                    html += '<span class="breadcrumb-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapeHtml(crumbs[i].path) + '\')">' + escapeHtml(crumbs[i].name) + '</span>';
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        function getFileIcon(name, type) {
+            if (type === 'dir') return '\uD83D\uDCC1';
+            var ext = name.split('.').pop().toLowerCase();
+            var icons = {
+                'mp4': '\uD83C\uDFA5', 'mov': '\uD83C\uDFA5', 'avi': '\uD83C\uDFA5', 'mkv': '\uD83C\uDFA5',
+                'jpg': '\uD83D\uDDBC', 'jpeg': '\uD83D\uDDBC', 'png': '\uD83D\uDDBC', 'gif': '\uD83D\uDDBC', 'heic': '\uD83D\uDDBC',
+                'mp3': '\uD83C\uDFB5', 'wav': '\uD83C\uDFB5', 'm4a': '\uD83C\uDFB5', 'flac': '\uD83C\uDFB5',
+                'pdf': '\uD83D\uDCC4', 'doc': '\uD83D\uDCC4', 'docx': '\uD83D\uDCC4', 'xls': '\uD83D\uDCC4', 'xlsx': '\uD83D\uDCC4',
+                'zip': '\uD83D\uDCE6', 'rar': '\uD83D\uDCE6', '7z': '\uD83D\uDCE6', 'tar': '\uD83D\uDCE6',
+                'txt': '\uD83D\uDCC3', 'csv': '\uD83D\uDCC3'
+            };
+            return icons[ext] || '\uD83D\uDCC4';
+        }
+
+        function renderFileList(items, storage) {
+            var container = document.getElementById('file-list');
+            if (items.length === 0) {
+                container.innerHTML = '<div class="file-empty">Empty directory</div>';
+                return;
+            }
+
+            var dirs = items.filter(function(i) { return i.type === 'dir'; });
+            var files = items.filter(function(i) { return i.type === 'file'; });
+            var sorted = dirs.concat(files);
+
+            var html = '';
+            for (var i = 0; i < sorted.length; i++) {
+                var item = sorted[i];
+                var icon = getFileIcon(item.name, item.type);
+                if (item.type === 'dir') {
+                    html += '<div class="file-item dir-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapeHtml(item.path).replace(/'/g, "\\'") + '\')">';
+                    html += '<span class="file-icon">' + icon + '</span>';
+                    html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
+                    html += '<span class="file-meta"><span class="file-meta-size">' + item.items + ' items</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="file-item">';
+                    html += '<span class="file-icon">' + icon + '</span>';
+                    html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
+                    html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size) + '</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '</div>';
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        loadDirectory('hot', '');
     </script>
 </body>
 </html>
