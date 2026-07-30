@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiNAS Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Noto Sans JP", sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+        header { padding: 32px 10%; border-bottom: 1px solid #2a2a4a; }
+        header h1 { font-size: 28px; font-weight: 700; color: #7c8cf8; letter-spacing: 2px; }
+        header p { font-size: 14px; color: #8888aa; margin-top: 4px; }
+        .container { padding: 32px 10%; }
+        .section-title { font-size: 18px; font-weight: 500; color: #c0c0e0; margin-bottom: 16px; }
+
+        /* dashboard cards */
+        .dashboard { display: flex; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
+        .storage-card { flex: 1; min-width: 280px; background: #16162b; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; }
+        .storage-label { font-size: 14px; color: #8888aa; margin-bottom: 4px; }
+        .storage-name { font-size: 20px; font-weight: 700; color: #c0c0e0; margin-bottom: 12px; }
+        .storage-bar-bg { height: 12px; background: #2a2a4a; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+        .storage-bar-fill { height: 100%; border-radius: 6px; transition: width 0.5s; }
+        .bar-green { background: #4caf84; }
+        .bar-yellow { background: #f5c542; }
+        .bar-red { background: #e05555; }
+        .storage-detail { font-size: 13px; color: #8888aa; }
+        .storage-detail span { color: #c0c0e0; font-weight: 500; }
+
+        /* search */
+        .search-section { margin-bottom: 40px; }
+        .search-input { width: 100%; max-width: 500px; padding: 10px 14px; background: #16162b; border: 1px solid #3a3a5e; border-radius: 8px; color: #e0e0e0; font-family: "Noto Sans JP", sans-serif; font-size: 14px; }
+        .search-input:focus { outline: none; border-color: #7c8cf8; }
+        .search-hint { font-size: 11px; color: #666688; margin-top: 4px; }
+
+        /* results table */
+        .results-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        .results-table th { text-align: left; padding: 10px 12px; font-size: 13px; color: #8888aa; border-bottom: 1px solid #2a2a4a; }
+        .results-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #222244; }
+        .results-table tr:hover { background: #1e1e36; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+        .badge-hot { background: #1e3a6e; color: #6eaaff; }
+        .badge-cold { background: #3a3a5e; color: #aaaacc; }
+        .filename-cell { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .path-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #8888aa; }
+
+        /* buttons */
+        .btn { display: inline-block; padding: 8px 20px; border: none; border-radius: 8px; font-family: "Noto Sans JP", sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .btn-primary { background: #7c8cf8; color: #fff; }
+        .btn-primary:hover { background: #6a7ae6; }
+        .btn-secondary { background: #3a3a5e; color: #c0c0e0; }
+        .btn-secondary:hover { background: #4a4a6e; }
+        .btn-danger { background: #e05555; color: #fff; }
+        .btn-danger:hover { background: #c94444; }
+        .btn-restore { background: #4caf84; color: #fff; padding: 4px 12px; font-size: 12px; }
+        .btn-restore:hover { background: #3d9b72; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* archive control */
+        .archive-section { margin-bottom: 40px; }
+        .archive-actions { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .archive-output { background: #0d0d1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 12px; line-height: 1.6; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; color: #aaaacc; }
+
+        .empty-message { text-align: center; padding: 32px; color: #666688; font-size: 14px; }
+        .hidden-element { display: none !important; }
+        .message { margin-top: 12px; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
+        .message-success { background: #1e4e3a; color: #6ee0a8; }
+        .message-error { background: #4e1e1e; color: #ff6e6e; }
+
+        @media (max-width: 768px) {
+            header { padding: 24px 5%; }
+            .container { padding: 24px 5%; }
+            .dashboard { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PiNAS Manager</h1>
+        <p>Storage Dashboard</p>
+    </header>
+    <div class="container">
+        <!-- Dashboard -->
+        <h2 class="section-title">Storage</h2>
+        <div class="dashboard">
+            <div class="storage-card">
+                <div class="storage-label">Hot Storage (SSD)</div>
+                <div class="storage-name" id="hot-name">{{ hot_dir }}</div>
+                <div class="storage-bar-bg">
+                    <div id="hot-bar" class="storage-bar-fill"></div>
+                </div>
+                <div class="storage-detail">
+                    <span id="hot-used">{{ hot.used_gb }}</span> / <span id="hot-total">{{ hot.total_gb }}</span> GB used
+                    (<span id="hot-percent">{{ hot.percent }}</span>%) |
+                    <span id="hot-files">{{ hot_files }}</span> files
+                </div>
+            </div>
+            <div class="storage-card">
+                <div class="storage-label">Cold Storage (HDD)</div>
+                <div class="storage-name" id="cold-name">{{ cold_dir }}</div>
+                <div class="storage-bar-bg">
+                    <div id="cold-bar" class="storage-bar-fill"></div>
+                </div>
+                <div class="storage-detail">
+                    <span id="cold-used">{{ cold.used_gb }}</span> / <span id="cold-total">{{ cold.total_gb }}</span> GB used
+                    (<span id="cold-percent">{{ cold.percent }}</span>%) |
+                    <span id="cold-files">{{ cold_files }}</span> files
+                </div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <h2 class="section-title">File Search</h2>
+        <div class="search-section">
+            <input type="text" id="search-input" class="search-input" placeholder="Search files across all storage...">
+            <div class="search-hint">Enter at least 2 characters to search</div>
+            <div id="search-results"></div>
+        </div>
+
+        <!-- Archive Control -->
+        <h2 class="section-title">Archive Control</h2>
+        <div class="archive-section">
+            <div class="archive-actions">
+                <button id="btn-dryrun" class="btn btn-secondary">Dry Run (Preview)</button>
+                <button id="btn-archive" class="btn btn-danger">Run Archive</button>
+            </div>
+            <div id="archive-output" class="archive-output hidden-element"></div>
+            <div id="archive-message" class="hidden-element"></div>
+        </div>
+    </div>
+
+    <script>
+        /* Dashboard auto-refresh */
+        function updateBarColor(el, percent) {
+            el.className = 'storage-bar-fill';
+            if (percent > 90) el.classList.add('bar-red');
+            else if (percent > 70) el.classList.add('bar-yellow');
+            else el.classList.add('bar-green');
+            el.style.width = percent + '%';
+        }
+
+        function refreshDashboard() {
+            fetch('/api/dashboard')
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    document.getElementById('hot-used').textContent = d.hot.used_gb;
+                    document.getElementById('hot-total').textContent = d.hot.total_gb;
+                    document.getElementById('hot-percent').textContent = d.hot.percent;
+                    document.getElementById('hot-files').textContent = d.hot_files;
+                    updateBarColor(document.getElementById('hot-bar'), d.hot.percent);
+
+                    document.getElementById('cold-used').textContent = d.cold.used_gb;
+                    document.getElementById('cold-total').textContent = d.cold.total_gb;
+                    document.getElementById('cold-percent').textContent = d.cold.percent;
+                    document.getElementById('cold-files').textContent = d.cold_files;
+                    updateBarColor(document.getElementById('cold-bar'), d.cold.percent);
+                });
+        }
+        // Initial bar colors
+        updateBarColor(document.getElementById('hot-bar'), {{ hot.percent }});
+        updateBarColor(document.getElementById('cold-bar'), {{ cold.percent }});
+        setInterval(refreshDashboard, 30000);
+
+        /* Search */
+        var searchTimer = null;
+        document.getElementById('search-input').addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            var q = this.value.trim();
+            if (q.length < 2) {
+                document.getElementById('search-results').innerHTML = '';
+                return;
+            }
+            searchTimer = setTimeout(function() {
+                fetch('/api/search?q=' + encodeURIComponent(q))
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        renderSearchResults(d.results || []);
+                    });
+            }, 300);
+        });
+
+        function escapeHtml(t) {
+            var d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        function renderSearchResults(results) {
+            var container = document.getElementById('search-results');
+            if (results.length === 0) {
+                container.innerHTML = '<div class="empty-message">No files found</div>';
+                return;
+            }
+            var html = '<table class="results-table"><thead><tr>';
+            html += '<th>Name</th><th>Path</th><th>Size</th><th>Modified</th><th>Storage</th><th>Action</th>';
+            html += '</tr></thead><tbody>';
+            for (var i = 0; i < results.length; i++) {
+                var r = results[i];
+                var badge = r.storage === 'hot' ? '<span class="badge badge-hot">SSD</span>' : '<span class="badge badge-cold">HDD</span>';
+                var action = '';
+                if (r.storage === 'cold') {
+                    action = '<button class="btn btn-restore" onclick="restoreFile(\'' + escapeHtml(r.path).replace(/'/g, "\\'") + '\')">Restore</button>';
+                }
+                html += '<tr>';
+                html += '<td class="filename-cell" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</td>';
+                html += '<td class="path-cell" title="' + escapeHtml(r.path) + '">' + escapeHtml(r.path) + '</td>';
+                html += '<td>' + r.size_mb + ' MB</td>';
+                html += '<td>' + escapeHtml(r.modified) + '</td>';
+                html += '<td>' + badge + '</td>';
+                html += '<td>' + action + '</td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function restoreFile(path) {
+            if (!confirm('Restore this file to SSD?\n' + path)) return;
+            fetch('/api/restore', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    alert(d.message);
+                    // Re-search
+                    var q = document.getElementById('search-input').value.trim();
+                    if (q.length >= 2) {
+                        fetch('/api/search?q=' + encodeURIComponent(q))
+                            .then(function(r2) { return r2.json(); })
+                            .then(function(d2) { renderSearchResults(d2.results || []); });
+                    }
+                    refreshDashboard();
+                } else {
+                    alert('Error: ' + d.message);
+                }
+            });
+        }
+
+        /* Archive Control */
+        document.getElementById('btn-dryrun').addEventListener('click', function() {
+            runArchive(true);
+        });
+
+        document.getElementById('btn-archive').addEventListener('click', function() {
+            if (!confirm('Run archive for real? Files will be moved from SSD to HDD.')) return;
+            runArchive(false);
+        });
+
+        function runArchive(dryRun) {
+            var btnDry = document.getElementById('btn-dryrun');
+            var btnRun = document.getElementById('btn-archive');
+            var output = document.getElementById('archive-output');
+            btnDry.disabled = true;
+            btnRun.disabled = true;
+            output.classList.remove('hidden-element');
+            output.textContent = 'Running' + (dryRun ? ' (dry run)' : '') + '...';
+
+            fetch('/api/archive/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({dry_run: dryRun})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                output.textContent = d.output || 'Done';
+                btnDry.disabled = false;
+                btnRun.disabled = false;
+                refreshDashboard();
+            })
+            .catch(function() {
+                output.textContent = 'Request failed';
+                btnDry.disabled = false;
+                btnRun.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
