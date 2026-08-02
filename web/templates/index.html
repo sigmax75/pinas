@@ -186,7 +186,86 @@
 
         .empty-message { text-align: center; padding: 32px; color: #666688; font-size: 14px; }
         .hidden-element { display: none !important; }
+        .hidden-el { display: none !important; }
         .message { margin-top: 12px; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
+
+        /* Preview modal */
+        .pv-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 200; display: flex; align-items: center; justify-content: center; }
+        .pv-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
+        .pv-content { position: relative; z-index: 1; max-width: 90%; max-height: 90vh; display: flex; flex-direction: column; align-items: center; }
+        .pv-close { position: absolute; top: -40px; right: 0; background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
+        .pv-body img { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
+        .pv-body video { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
+        .pv-body audio { width: 400px; max-width: 90vw; }
+        .pv-filename { color: #aaa; font-size: 13px; margin-top: 12px; text-align: center; }
+
+        /* Previewable file */
+        .file-previewable { cursor: pointer; }
+        .file-previewable:hover .file-name { color: #7c8cf8; }
+
+        /* Move button */
+        .file-move-btn {
+            background: none;
+            border: none;
+            color: #4a4a6e;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+            flex-shrink: 0;
+        }
+        .file-move-btn:hover {
+            color: #4caf84;
+            background: rgba(76, 175, 132, 0.1);
+        }
+
+        /* Bulk selection */
+        .file-check { accent-color: #7c8cf8; width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+        .bulk-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e1e3a; border: 1px solid #7c8cf8; border-radius: 8px; margin-bottom: 8px; }
+        .bulk-count { font-size: 13px; color: #7c8cf8; font-weight: 600; }
+        .bulk-btn { padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .bulk-btn-move { background: #4caf84; color: #fff; }
+        .bulk-btn-move:hover { background: #3d9b72; }
+        .bulk-btn-del { background: #e05555; color: #fff; }
+        .bulk-btn-del:hover { background: #c94444; }
+        .bulk-btn-clear { background: none; border: none; color: #8888aa; font-size: 12px; cursor: pointer; font-family: inherit; }
+        .bulk-btn-clear:hover { color: #c0c0e0; }
+
+        /* Bookmarks */
+        .bookmark-btn {
+            background: none;
+            border: none;
+            color: #8888aa;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            transition: color 0.15s;
+        }
+        .bookmark-btn:hover { color: #f5c542; }
+        .bookmark-btn.bookmarked { color: #f5c542; }
+
+        .bookmarks {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .bookmark-chip {
+            padding: 4px 12px;
+            background: #2a2a4a;
+            border: 1px solid #3a3a5e;
+            border-radius: 16px;
+            color: #c0c0e0;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .bookmark-chip:hover {
+            background: #3a3a5e;
+        }
         .message-success { background: #1e4e3a; color: #6ee0a8; }
         .message-error { background: #4e1e1e; color: #ff6e6e; }
 
@@ -245,7 +324,14 @@
                 <button type="button" id="mkdir-btn" class="mkdir-btn" onclick="createFolder()">&#128193; 新規フォルダ</button>
                 <span id="upload-status" class="upload-status"></span>
             </div>
+            <div id="bookmarks" class="bookmarks"></div>
             <div id="breadcrumb" class="breadcrumb"></div>
+            <div id="bulk-bar" class="bulk-bar hidden-el">
+                <span id="bulk-count" class="bulk-count"></span>
+                <button class="bulk-btn bulk-btn-move" onclick="bulkMove()">&#8644; \u79FB\u52D5</button>
+                <button class="bulk-btn bulk-btn-del" onclick="bulkDelete()">&#128465; \u524A\u9664</button>
+                <button class="bulk-btn-clear" onclick="clearSelection()">\u9078\u629E\u89E3\u9664</button>
+            </div>
             <div id="sort-header" class="sort-header">
                 <span class="sort-item sort-active" data-sort="name" data-order="asc" onclick="toggleSort('name')">名前 &#9650;</span>
                 <span class="sort-item" data-sort="size" onclick="toggleSort('size')">サイズ</span>
@@ -272,6 +358,15 @@
             </div>
             <div id="archive-output" class="archive-output hidden-element"></div>
             <div id="archive-message" class="hidden-element"></div>
+        </div>
+    </div>
+
+    <div id="preview-modal" class="pv-modal hidden-el">
+        <div class="pv-overlay" onclick="closePreviewModal()"></div>
+        <div class="pv-content">
+            <button class="pv-close" onclick="closePreviewModal()">&times;</button>
+            <div id="pv-body" class="pv-body"></div>
+            <div id="pv-filename" class="pv-filename"></div>
         </div>
     </div>
 
@@ -329,6 +424,192 @@
             var d = document.createElement('div');
             d.textContent = t;
             return d.innerHTML;
+        }
+
+        /* Preview */
+        var IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+        var VIDEO_EXTS = ['mp4','mov','avi','mkv','webm'];
+        var AUDIO_EXTS = ['mp3','wav','m4a','flac','ogg','aac'];
+
+        function getFileExt(name) {
+            return (name || '').split('.').pop().toLowerCase();
+        }
+
+        function canPreview(name) {
+            var ext = getFileExt(name);
+            return IMAGE_EXTS.indexOf(ext) !== -1 || VIDEO_EXTS.indexOf(ext) !== -1 || AUDIO_EXTS.indexOf(ext) !== -1;
+        }
+
+        function openPreviewModal(storage, path, name) {
+            var ext = getFileExt(name);
+            var url = '/api/download?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(path);
+            var body = document.getElementById('pv-body');
+
+            if (IMAGE_EXTS.indexOf(ext) !== -1) {
+                body.innerHTML = '<img src="' + url + '" alt="">';
+            } else if (VIDEO_EXTS.indexOf(ext) !== -1) {
+                body.innerHTML = '<video src="' + url + '" controls autoplay></video>';
+            } else if (AUDIO_EXTS.indexOf(ext) !== -1) {
+                body.innerHTML = '<audio src="' + url + '" controls autoplay></audio>';
+            }
+
+            document.getElementById('pv-filename').textContent = name;
+            document.getElementById('preview-modal').classList.remove('hidden-el');
+        }
+
+        function closePreviewModal() {
+            var modal = document.getElementById('preview-modal');
+            modal.classList.add('hidden-el');
+            var body = document.getElementById('pv-body');
+            var video = body.querySelector('video');
+            var audio = body.querySelector('audio');
+            if (video) video.pause();
+            if (audio) audio.pause();
+            body.innerHTML = '';
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closePreviewModal();
+        });
+
+        /* Move */
+        function moveItem(srcStorage, srcPath, dstStorage, name) {
+            var label = dstStorage === 'hot' ? 'SSD' : 'HDD';
+            if (!confirm('"' + name + '" \u3092' + label + '\u306B\u79FB\u52D5\u3057\u307E\u3059\u304B\uFF1F')) return;
+            fetch('/api/move', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({src_storage: srcStorage, src_path: srcPath, dst_storage: dstStorage, dst_path: ''})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    loadDirectory(currentStorage, currentBrowsePath);
+                    refreshDashboard();
+                } else {
+                    alert(d.message || '\u30A8\u30E9\u30FC');
+                }
+            });
+        }
+
+        /* Bulk selection */
+        function updateBulkBar() {
+            var checked = document.querySelectorAll('.file-check:checked');
+            var bar = document.getElementById('bulk-bar');
+            if (checked.length > 0) {
+                bar.classList.remove('hidden-el');
+                document.getElementById('bulk-count').textContent = checked.length + ' \u4EF6\u9078\u629E\u4E2D';
+            } else {
+                bar.classList.add('hidden-el');
+            }
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('.file-check:checked').forEach(function(cb) { cb.checked = false; });
+            updateBulkBar();
+        }
+
+        function getSelectedPaths() {
+            var paths = [];
+            document.querySelectorAll('.file-check:checked').forEach(function(cb) {
+                paths.push({path: cb.getAttribute('data-path'), name: cb.getAttribute('data-name')});
+            });
+            return paths;
+        }
+
+        function bulkDelete() {
+            var items = getSelectedPaths();
+            if (!items.length) return;
+            if (!confirm(items.length + ' \u4EF6\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F')) return;
+            var done = 0;
+            items.forEach(function(item) {
+                fetch('/api/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({storage: currentStorage, path: item.path})
+                }).then(function() {
+                    done++;
+                    if (done === items.length) {
+                        loadDirectory(currentStorage, currentBrowsePath);
+                        refreshDashboard();
+                    }
+                });
+            });
+        }
+
+        function bulkMove() {
+            var items = getSelectedPaths();
+            if (!items.length) return;
+            var target = currentStorage === 'hot' ? 'cold' : 'hot';
+            var label = target === 'hot' ? 'SSD' : 'HDD';
+            if (!confirm(items.length + ' \u4EF6\u3092' + label + '\u306B\u79FB\u52D5\u3057\u307E\u3059\u304B\uFF1F')) return;
+            var done = 0;
+            items.forEach(function(item) {
+                fetch('/api/move', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({src_storage: currentStorage, src_path: item.path, dst_storage: target, dst_path: ''})
+                }).then(function() {
+                    done++;
+                    if (done === items.length) {
+                        loadDirectory(currentStorage, currentBrowsePath);
+                        refreshDashboard();
+                    }
+                });
+            });
+        }
+
+        /* Bookmarks */
+        function getBookmarks() {
+            try { return JSON.parse(localStorage.getItem('pinas_bookmarks') || '[]'); }
+            catch(e) { return []; }
+        }
+
+        function saveBookmarks(bm) {
+            localStorage.setItem('pinas_bookmarks', JSON.stringify(bm));
+        }
+
+        function toggleBookmark() {
+            var bm = getBookmarks();
+            var key = currentStorage + ':' + currentBrowsePath;
+            var idx = -1;
+            for (var i = 0; i < bm.length; i++) {
+                if (bm[i].key === key) { idx = i; break; }
+            }
+            if (idx !== -1) {
+                bm.splice(idx, 1);
+            } else {
+                var name = currentBrowsePath ? currentBrowsePath.split('/').pop() : (currentStorage === 'hot' ? 'SSD' : 'HDD');
+                bm.push({key: key, storage: currentStorage, path: currentBrowsePath, name: name});
+            }
+            saveBookmarks(bm);
+            renderBookmarks();
+            updateBookmarkBtn();
+        }
+
+        function renderBookmarks() {
+            var container = document.getElementById('bookmarks');
+            var bm = getBookmarks();
+            if (!bm.length) { container.innerHTML = ''; return; }
+            var html = '';
+            bm.forEach(function(b) {
+                var label = (b.storage === 'hot' ? 'SSD' : 'HDD') + ': ' + (b.name || '/');
+                html += '<button class="bookmark-chip" onclick="loadDirectory(\'' + b.storage + '\',\'' + escapeHtml(b.path) + '\')">' + escapeHtml(label) + '</button>';
+            });
+            container.innerHTML = html;
+        }
+
+        function updateBookmarkBtn() {
+            var btn = document.getElementById('bookmark-btn');
+            if (!btn) return;
+            var bm = getBookmarks();
+            var key = currentStorage + ':' + currentBrowsePath;
+            var exists = false;
+            for (var i = 0; i < bm.length; i++) {
+                if (bm[i].key === key) { exists = true; break; }
+            }
+            btn.innerHTML = exists ? '&#9733;' : '&#9734;';
+            btn.classList.toggle('bookmarked', exists);
         }
 
         function renderSearchResults(results) {
@@ -574,6 +855,7 @@
                     }
                     renderBreadcrumb(data.breadcrumb, storage);
                     renderFileList(data.items, storage);
+                    updateBookmarkBtn();
                 })
                 .catch(function() {
                     document.getElementById('file-list').innerHTML = '<div class="file-empty">読み込みに失敗しました</div>';
@@ -591,6 +873,7 @@
                     html += '<span class="breadcrumb-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapeHtml(crumbs[i].path) + '\')">' + escapeHtml(crumbs[i].name) + '</span>';
                 }
             }
+            html += '<button id="bookmark-btn" class="bookmark-btn" onclick="toggleBookmark()" title="\u30D6\u30C3\u30AF\u30DE\u30FC\u30AF">&#9734;</button>';
             container.innerHTML = html;
         }
 
@@ -612,11 +895,13 @@
             currentItems = items;
             var container = document.getElementById('file-list');
             if (items.length === 0) {
-                container.innerHTML = '<div class="file-empty">空のフォルダです</div>';
+                container.innerHTML = '<div class="file-empty">\u7A7A\u306E\u30D5\u30A9\u30EB\u30C0\u3067\u3059</div>';
                 return;
             }
 
             var sorted = sortItems(items);
+            var moveTarget = storage === 'hot' ? 'cold' : 'hot';
+            var moveLabel = storage === 'hot' ? 'HDD\u3078' : 'SSD\u3078';
 
             var html = '';
             for (var i = 0; i < sorted.length; i++) {
@@ -626,23 +911,33 @@
                 var escapedName = escapeHtml(item.name).replace(/'/g, "\\'");
                 if (item.type === 'dir') {
                     html += '<div class="file-item dir-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapedPath + '\')">';
+                    html += '<input type="checkbox" class="file-check" data-path="' + escapeHtml(item.path) + '" data-name="' + escapeHtml(item.name) + '" onclick="event.stopPropagation();updateBulkBar()">';
                     html += '<span class="file-icon">' + icon + '</span>';
                     html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
-                    html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size || '') + '</span><span>' + item.items + ' 件</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size || '') + '</span><span>' + item.items + ' \u4EF6</span><span>' + escapeHtml(item.modified) + '</span></span>';
                     html += '<div class="file-actions">';
-                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="名前変更">&#9998;</button>';
-                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="削除">&#128465;</button>';
+                    html += '<a href="/api/download-zip?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(item.path) + '" class="file-dl-btn" title="ZIP\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9" onclick="event.stopPropagation()">&#128230;</a>';
+                    html += '<button class="file-move-btn" onclick="event.stopPropagation();moveItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + moveTarget + '\',\'' + escapedName + '\')" title="' + moveLabel + '">&#8644;</button>';
+                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="\u540D\u524D\u5909\u66F4">&#9998;</button>';
+                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="\u524A\u9664">&#128465;</button>';
                     html += '</div>';
                     html += '</div>';
                 } else {
-                    html += '<div class="file-item">';
+                    var previewable = canPreview(item.name);
+                    if (previewable) {
+                        html += '<div class="file-item file-previewable" onclick="openPreviewModal(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')">';
+                    } else {
+                        html += '<div class="file-item">';
+                    }
+                    html += '<input type="checkbox" class="file-check" data-path="' + escapeHtml(item.path) + '" data-name="' + escapeHtml(item.name) + '" onclick="event.stopPropagation();updateBulkBar()">';
                     html += '<span class="file-icon">' + icon + '</span>';
                     html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
                     html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size) + '</span><span>' + escapeHtml(item.modified) + '</span></span>';
                     html += '<div class="file-actions">';
-                    html += '<a href="/api/download?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(item.path) + '" class="file-dl-btn" title="ダウンロード" onclick="event.stopPropagation()">&#11015;</a>';
-                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="名前変更">&#9998;</button>';
-                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="削除">&#128465;</button>';
+                    html += '<a href="/api/download?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(item.path) + '" class="file-dl-btn" title="\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9" onclick="event.stopPropagation()">&#11015;</a>';
+                    html += '<button class="file-move-btn" onclick="event.stopPropagation();moveItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + moveTarget + '\',\'' + escapedName + '\')" title="' + moveLabel + '">&#8644;</button>';
+                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="\u540D\u524D\u5909\u66F4">&#9998;</button>';
+                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="\u524A\u9664">&#128465;</button>';
                     html += '</div>';
                     html += '</div>';
                 }
@@ -691,6 +986,7 @@
             this.value = '';
         });
 
+        renderBookmarks();
         loadDirectory('hot', '');
     </script>
 </body>

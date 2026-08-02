@@ -3,6 +3,8 @@
 import os
 import subprocess
 import shutil
+import zipfile
+import tempfile
 from datetime import datetime
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
@@ -421,6 +423,72 @@ async def api_rename(request: Request):
         return JSONResponse(content={"status": "ok"})
     except Exception as e:
         return JSONResponse(content={"status": "error", "message": str(e)})
+
+
+@app.post("/api/move")
+async def api_move(request: Request):
+    """Move file between storages or within same storage"""
+    body = await request.json()
+    src_storage = body.get("src_storage", "")
+    src_path = body.get("src_path", "")
+    dst_storage = body.get("dst_storage", "")
+    dst_path = body.get("dst_path", "")
+
+    if not src_path or ".." in src_path or ".." in dst_path:
+        return JSONResponse(content={"status": "error", "message": "Invalid path"})
+
+    src_base = config.HOT_DIR if src_storage == "hot" else config.COLD_DIR
+    dst_base = config.HOT_DIR if dst_storage == "hot" else config.COLD_DIR
+
+    src_full = os.path.join(src_base, src_path)
+    filename = os.path.basename(src_path)
+    dst_dir = os.path.join(dst_base, dst_path) if dst_path else dst_base
+    dst_full = os.path.join(dst_dir, filename)
+
+    if not os.path.exists(src_full):
+        return JSONResponse(content={"status": "error", "message": "Source not found"})
+
+    try:
+        os.makedirs(dst_dir, exist_ok=True)
+        shutil.move(src_full, dst_full)
+        return JSONResponse(content={"status": "ok"})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "message": str(e)})
+
+
+@app.get("/api/download-zip")
+async def api_download_zip(storage: str = "hot", path: str = ""):
+    """Download a directory as ZIP"""
+    if not path or ".." in path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    base = config.HOT_DIR if storage == "hot" else config.COLD_DIR
+    target = os.path.join(base, path)
+
+    if not os.path.isdir(target):
+        raise HTTPException(status_code=400, detail="Not a directory")
+
+    dirname = os.path.basename(path)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    tmp_path = tmp.name
+    tmp.close()
+
+    try:
+        with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(target):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                for f in files:
+                    if f.startswith('.'):
+                        continue
+                    fpath = os.path.join(root, f)
+                    arcname = os.path.join(dirname, os.path.relpath(fpath, target))
+                    zf.write(fpath, arcname)
+
+        return FastFileResponse(path=tmp_path, filename=dirname + '.zip', media_type='application/zip')
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/dashboard")
