@@ -5,8 +5,8 @@ import subprocess
 import shutil
 from datetime import datetime
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse as FastFileResponse
 from fastapi.templating import Jinja2Templates
 
 import config
@@ -81,8 +81,7 @@ async def index(request: Request):
     cold = get_disk_usage(config.COLD_DIR)
     hot_files = count_files(config.HOT_DIR)
     cold_files = count_files(config.COLD_DIR)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request=request, name="index.html", context={
         "hot": hot,
         "cold": cold,
         "hot_files": hot_files,
@@ -126,16 +125,36 @@ async def api_browse(storage: str = "hot", path: str = ""):
                 stat = os.stat(full_path)
                 is_dir = os.path.isdir(full_path)
                 if is_dir:
-                    # Count items in directory
+                    # Count items and calc dir size
                     try:
                         child_count = len([x for x in os.listdir(full_path) if not x.startswith('.')])
                     except Exception:
                         child_count = 0
+                    dir_size = 0
+                    try:
+                        for droot, ddirs, dfiles in os.walk(full_path):
+                            ddirs[:] = [d for d in ddirs if not d.startswith('.')]
+                            for df in dfiles:
+                                try:
+                                    dir_size += os.path.getsize(os.path.join(droot, df))
+                                except OSError:
+                                    pass
+                    except Exception:
+                        pass
+                    if dir_size >= 1024**3:
+                        dir_size_str = str(round(dir_size / (1024**3), 1)) + " GB"
+                    elif dir_size >= 1024**2:
+                        dir_size_str = str(round(dir_size / (1024**2), 1)) + " MB"
+                    elif dir_size >= 1024:
+                        dir_size_str = str(round(dir_size / 1024, 1)) + " KB"
+                    else:
+                        dir_size_str = str(dir_size) + " B"
                     items.append({
                         "name": entry,
                         "path": rel_path,
                         "type": "dir",
                         "items": child_count,
+                        "size": dir_size_str,
                         "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
                     })
                 else:
@@ -161,7 +180,7 @@ async def api_browse(storage: str = "hot", path: str = ""):
         return JSONResponse(content={"error": str(e)})
 
     # Build breadcrumb
-    breadcrumb = [{"name": "Root", "path": ""}]
+    breadcrumb = [{"name": "\u30eb\u30fc\u30c8", "path": ""}]
     if path:
         parts = path.split("/")
         for i, part in enumerate(parts):
@@ -263,6 +282,145 @@ async def api_archive_run(request: Request):
                 pass
 
     return JSONResponse(content={"status": "ok", "output": output})
+
+
+@app.get("/api/download")
+async def api_download(storage: str = "hot", path: str = ""):
+    """Download a file"""
+    if storage == "hot":
+        base = config.HOT_DIR
+    elif storage == "cold":
+        base = config.COLD_DIR
+    else:
+        raise HTTPException(status_code=400, detail="Invalid storage")
+
+    if ".." in path or not path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    filepath = os.path.join(base, path)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    filename = os.path.basename(filepath)
+    return FastFileResponse(path=filepath, filename=filename)
+
+
+@app.post("/api/upload")
+async def api_upload(file: UploadFile = File(...), storage: str = Form("hot"), path: str = Form("")):
+    """Upload a file to specified directory"""
+    if storage == "hot":
+        base = config.HOT_DIR
+    elif storage == "cold":
+        base = config.COLD_DIR
+    else:
+        return JSONResponse(content={"status": "error", "message": "Invalid storage"})
+
+    if ".." in path:
+        return JSONResponse(content={"status": "error", "message": "Invalid path"})
+
+    target_dir = os.path.join(base, path) if path else base
+    if not os.path.isdir(target_dir):
+        return JSONResponse(content={"status": "error", "message": "Directory not found"})
+
+    filename = file.filename or "uploaded_file"
+    # Sanitize filename
+    filename = filename.replace("/", "_").replace("\\", "_").replace("..", "_")
+
+    filepath = os.path.join(target_dir, filename)
+
+    # If file exists, add number suffix
+    if os.path.exists(filepath):
+        name, ext = os.path.splitext(filename)
+        i = 1
+        while os.path.exists(filepath):
+            filepath = os.path.join(target_dir, f"{name}_{i}{ext}")
+            i += 1
+
+    contents = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    size_mb = round(len(contents) / (1024 * 1024), 1)
+    return JSONResponse(content={"status": "ok", "filename": os.path.basename(filepath), "size_mb": size_mb})
+
+
+@app.post("/api/mkdir")
+async def api_mkdir(request: Request):
+    """Create a new directory"""
+    body = await request.json()
+    storage = body.get("storage", "hot")
+    path = body.get("path", "")
+    name = body.get("name", "").strip()
+
+    if not name or ".." in name or "/" in name or "\\" in name:
+        return JSONResponse(content={"status": "error", "message": "Invalid folder name"})
+    if ".." in path:
+        return JSONResponse(content={"status": "error", "message": "Invalid path"})
+
+    base = config.HOT_DIR if storage == "hot" else config.COLD_DIR
+    target = os.path.join(base, path, name) if path else os.path.join(base, name)
+
+    if os.path.exists(target):
+        return JSONResponse(content={"status": "error", "message": "Already exists"})
+
+    try:
+        os.makedirs(target)
+        return JSONResponse(content={"status": "ok"})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "message": str(e)})
+
+
+@app.post("/api/delete")
+async def api_delete(request: Request):
+    """Delete a file or directory"""
+    body = await request.json()
+    storage = body.get("storage", "hot")
+    path = body.get("path", "")
+
+    if not path or ".." in path:
+        return JSONResponse(content={"status": "error", "message": "Invalid path"})
+
+    base = config.HOT_DIR if storage == "hot" else config.COLD_DIR
+    target = os.path.join(base, path)
+
+    if not os.path.exists(target):
+        return JSONResponse(content={"status": "error", "message": "Not found"})
+
+    try:
+        if os.path.isdir(target):
+            shutil.rmtree(target)
+        else:
+            os.remove(target)
+        return JSONResponse(content={"status": "ok"})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "message": str(e)})
+
+
+@app.post("/api/rename")
+async def api_rename(request: Request):
+    """Rename a file or directory"""
+    body = await request.json()
+    storage = body.get("storage", "hot")
+    path = body.get("path", "")
+    new_name = body.get("new_name", "").strip()
+
+    if not path or not new_name or ".." in path or ".." in new_name or "/" in new_name or "\\" in new_name:
+        return JSONResponse(content={"status": "error", "message": "Invalid input"})
+
+    base = config.HOT_DIR if storage == "hot" else config.COLD_DIR
+    old_path = os.path.join(base, path)
+    new_path = os.path.join(os.path.dirname(old_path), new_name)
+
+    if not os.path.exists(old_path):
+        return JSONResponse(content={"status": "error", "message": "Not found"})
+    if os.path.exists(new_path):
+        return JSONResponse(content={"status": "error", "message": "Name already exists"})
+
+    try:
+        os.rename(old_path, new_path)
+        return JSONResponse(content={"status": "ok"})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "message": str(e)})
 
 
 @app.get("/api/dashboard")

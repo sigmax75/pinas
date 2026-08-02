@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PiNAS Manager</title>
+    <title>PiNAS 管理</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         /* base */
@@ -85,6 +85,105 @@
         .file-meta-size { min-width: 70px; text-align: right; }
         .file-empty { padding: 32px; text-align: center; color: #666688; font-size: 14px; }
 
+        .sort-header {
+            display: flex;
+            gap: 4px;
+            padding: 8px 16px;
+            background: #16162b;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px 8px 0 0;
+            border-bottom: none;
+        }
+        .sort-item {
+            font-size: 12px;
+            color: #8888aa;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 4px;
+            transition: background 0.15s, color 0.15s;
+            user-select: none;
+        }
+        .sort-item:hover {
+            background: #2a2a4a;
+            color: #c0c0e0;
+        }
+        .sort-item.sort-active {
+            color: #7c8cf8;
+            font-weight: 600;
+        }
+        .mkdir-btn {
+            padding: 6px 16px;
+            background: #3a3a5e;
+            color: #c0c0e0;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .mkdir-btn:hover {
+            background: #4a4a6e;
+        }
+        .file-dl-btn {
+            color: #6366f1;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .file-dl-btn:hover { background: #2a2a4a; }
+        .file-del-btn, .file-rename-btn {
+            background: none;
+            border: none;
+            color: #4a4a6e;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+            flex-shrink: 0;
+        }
+        .file-del-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .file-rename-btn:hover {
+            color: #7c8cf8;
+            background: rgba(124, 140, 248, 0.1);
+        }
+        .file-actions {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .upload-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .upload-input-hidden { display: none; }
+        .upload-btn {
+            padding: 6px 16px;
+            background: #6366f1;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .upload-btn:hover { background: #4f46e5; }
+        .upload-status { font-size: 12px; color: #8888aa; }
+
         .empty-message { text-align: center; padding: 32px; color: #666688; font-size: 14px; }
         .hidden-element { display: none !important; }
         .message { margin-top: 12px; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
@@ -100,64 +199,76 @@
 </head>
 <body>
     <header>
-        <h1>PiNAS Manager</h1>
-        <p>Storage Dashboard</p>
+        <h1>PiNAS 管理</h1>
+        <p>ストレージ管理</p>
     </header>
     <div class="container">
         <!-- Dashboard -->
-        <h2 class="section-title">Storage</h2>
+        <h2 class="section-title">ストレージ</h2>
         <div class="dashboard">
             <div class="storage-card">
-                <div class="storage-label">Hot Storage (SSD)</div>
+                <div class="storage-label">メイン (SSD)</div>
                 <div class="storage-name" id="hot-name">{{ hot_dir }}</div>
                 <div class="storage-bar-bg">
                     <div id="hot-bar" class="storage-bar-fill"></div>
                 </div>
                 <div class="storage-detail">
-                    <span id="hot-used">{{ hot.used_gb }}</span> / <span id="hot-total">{{ hot.total_gb }}</span> GB used
+                    <span id="hot-used">{{ hot.used_gb }}</span> / <span id="hot-total">{{ hot.total_gb }}</span> GB 使用中
                     (<span id="hot-percent">{{ hot.percent }}</span>%) |
-                    <span id="hot-files">{{ hot_files }}</span> files
+                    <span id="hot-files">{{ hot_files }}</span> ファイル
                 </div>
             </div>
             <div class="storage-card">
-                <div class="storage-label">Cold Storage (HDD)</div>
+                <div class="storage-label">アーカイブ (HDD)</div>
                 <div class="storage-name" id="cold-name">{{ cold_dir }}</div>
                 <div class="storage-bar-bg">
                     <div id="cold-bar" class="storage-bar-fill"></div>
                 </div>
                 <div class="storage-detail">
-                    <span id="cold-used">{{ cold.used_gb }}</span> / <span id="cold-total">{{ cold.total_gb }}</span> GB used
+                    <span id="cold-used">{{ cold.used_gb }}</span> / <span id="cold-total">{{ cold.total_gb }}</span> GB 使用中
                     (<span id="cold-percent">{{ cold.percent }}</span>%) |
-                    <span id="cold-files">{{ cold_files }}</span> files
+                    <span id="cold-files">{{ cold_files }}</span> ファイル
                 </div>
             </div>
         </div>
 
         <!-- File Browser -->
-        <h2 class="section-title">File Browser</h2>
+        <h2 class="section-title">ファイルブラウザ</h2>
         <div class="browser-section">
             <div class="browser-tabs">
-                <button id="tab-hot" class="browser-tab active" data-storage="hot">SSD (Hot)</button>
-                <button id="tab-cold" class="browser-tab" data-storage="cold">HDD (Cold)</button>
+                <button id="tab-hot" class="browser-tab active" data-storage="hot">SSD (メイン)</button>
+                <button id="tab-cold" class="browser-tab" data-storage="cold">HDD (アーカイブ)</button>
+            </div>
+            <div id="upload-area" class="upload-area">
+                <input type="file" id="upload-input" class="upload-input-hidden" multiple>
+                <button type="button" id="upload-btn" class="upload-btn" onclick="document.getElementById('upload-input').click()">&#11014; ファイルをアップロード</button>
+                <button type="button" id="mkdir-btn" class="mkdir-btn" onclick="createFolder()">&#128193; 新規フォルダ</button>
+                <span id="upload-status" class="upload-status"></span>
             </div>
             <div id="breadcrumb" class="breadcrumb"></div>
+            <div id="sort-header" class="sort-header">
+                <span class="sort-item sort-active" data-sort="name" data-order="asc" onclick="toggleSort('name')">名前 &#9650;</span>
+                <span class="sort-item" data-sort="size" onclick="toggleSort('size')">サイズ</span>
+                <span class="sort-item" data-sort="modified" onclick="toggleSort('modified')">更新日</span>
+                <span class="sort-item" data-sort="type" onclick="toggleSort('type')">種別</span>
+            </div>
             <div id="file-list" class="file-list"></div>
         </div>
 
         <!-- Search -->
-        <h2 class="section-title">File Search</h2>
+        <h2 class="section-title">ファイル検索</h2>
         <div class="search-section">
-            <input type="text" id="search-input" class="search-input" placeholder="Search files across all storage...">
-            <div class="search-hint">Enter at least 2 characters to search</div>
+            <input type="text" id="search-input" class="search-input" placeholder="ファイル名で検索...">
+            <div class="search-hint">2文字以上入力してください</div>
             <div id="search-results"></div>
         </div>
 
         <!-- Archive Control -->
-        <h2 class="section-title">Archive Control</h2>
+        <h2 class="section-title">アーカイブ操作</h2>
         <div class="archive-section">
             <div class="archive-actions">
-                <button id="btn-dryrun" class="btn btn-secondary">Dry Run (Preview)</button>
-                <button id="btn-archive" class="btn btn-danger">Run Archive</button>
+                <button id="btn-dryrun" class="btn btn-secondary">プレビュー実行</button>
+                <button id="btn-archive" class="btn btn-danger">アーカイブ実行</button>
             </div>
             <div id="archive-output" class="archive-output hidden-element"></div>
             <div id="archive-message" class="hidden-element"></div>
@@ -223,18 +334,18 @@
         function renderSearchResults(results) {
             var container = document.getElementById('search-results');
             if (results.length === 0) {
-                container.innerHTML = '<div class="empty-message">No files found</div>';
+                container.innerHTML = '<div class="empty-message">ファイルが見つかりません</div>';
                 return;
             }
             var html = '<table class="results-table"><thead><tr>';
-            html += '<th>Name</th><th>Path</th><th>Size</th><th>Modified</th><th>Storage</th><th>Action</th>';
+            html += '<th>ファイル名</th><th>パス</th><th>サイズ</th><th>更新日</th><th>保存先</th><th>操作</th>';
             html += '</tr></thead><tbody>';
             for (var i = 0; i < results.length; i++) {
                 var r = results[i];
                 var badge = r.storage === 'hot' ? '<span class="badge badge-hot">SSD</span>' : '<span class="badge badge-cold">HDD</span>';
                 var action = '';
                 if (r.storage === 'cold') {
-                    action = '<button class="btn btn-restore" onclick="restoreFile(\'' + escapeHtml(r.path).replace(/'/g, "\\'") + '\')">Restore</button>';
+                    action = '<button class="btn btn-restore" onclick="restoreFile(\'' + escapeHtml(r.path).replace(/'/g, "\\'") + '\')">復元</button>';
                 }
                 html += '<tr>';
                 html += '<td class="filename-cell" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</td>';
@@ -250,7 +361,7 @@
         }
 
         function restoreFile(path) {
-            if (!confirm('Restore this file to SSD?\n' + path)) return;
+            if (!confirm('このファイルをSSDに復元しますか？\n' + path)) return;
             fetch('/api/restore', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -280,7 +391,7 @@
         });
 
         document.getElementById('btn-archive').addEventListener('click', function() {
-            if (!confirm('Run archive for real? Files will be moved from SSD to HDD.')) return;
+            if (!confirm('アーカイブを実行しますか？ファイルがSSDからHDDに移動されます。')) return;
             runArchive(false);
         });
 
@@ -291,7 +402,7 @@
             btnDry.disabled = true;
             btnRun.disabled = true;
             output.classList.remove('hidden-element');
-            output.textContent = 'Running' + (dryRun ? ' (dry run)' : '') + '...';
+            output.textContent = '実行中' + (dryRun ? '（プレビュー）' : '') + '...';
 
             fetch('/api/archive/run', {
                 method: 'POST',
@@ -300,15 +411,139 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(d) {
-                output.textContent = d.output || 'Done';
+                output.textContent = d.output || '完了';
                 btnDry.disabled = false;
                 btnRun.disabled = false;
                 refreshDashboard();
             })
             .catch(function() {
-                output.textContent = 'Request failed';
+                output.textContent = '通信エラー';
                 btnDry.disabled = false;
                 btnRun.disabled = false;
+            });
+        }
+
+        /* Sort state */
+        var currentSort = 'name';
+        var currentOrder = 'asc';
+        var currentItems = [];
+
+        function toggleSort(field) {
+            if (currentSort === field) {
+                currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = field;
+                currentOrder = 'asc';
+            }
+            updateSortHeader();
+            renderFileList(currentItems, currentStorage);
+        }
+
+        function updateSortHeader() {
+            document.querySelectorAll('.sort-item').forEach(function(el) {
+                var field = el.getAttribute('data-sort');
+                el.classList.toggle('sort-active', field === currentSort);
+                if (field === currentSort) {
+                    el.textContent = el.textContent.replace(/ [\u25B2\u25BC]/, '') + (currentOrder === 'asc' ? ' \u25B2' : ' \u25BC');
+                } else {
+                    el.textContent = el.textContent.replace(/ [\u25B2\u25BC]/, '');
+                }
+            });
+        }
+
+        function parseSizeBytes(sizeStr) {
+            var match = sizeStr.match(/([\d.]+)\s*(B|KB|MB|GB|TB)/i);
+            if (!match) return 0;
+            var num = parseFloat(match[1]);
+            var unit = match[2].toUpperCase();
+            var multipliers = { 'B': 1, 'KB': 1024, 'MB': 1048576, 'GB': 1073741824, 'TB': 1099511627776 };
+            return num * (multipliers[unit] || 1);
+        }
+
+        function sortItems(items) {
+            var dirs = items.filter(function(i) { return i.type === 'dir'; });
+            var files = items.filter(function(i) { return i.type === 'file'; });
+
+            var sortFn;
+            if (currentSort === 'name') {
+                sortFn = function(a, b) { return a.name.localeCompare(b.name, 'ja'); };
+            } else if (currentSort === 'size') {
+                sortFn = function(a, b) { return parseSizeBytes(a.size || '0 B') - parseSizeBytes(b.size || '0 B'); };
+            } else if (currentSort === 'modified') {
+                sortFn = function(a, b) { return (a.modified || '').localeCompare(b.modified || ''); };
+            } else if (currentSort === 'type') {
+                sortFn = function(a, b) {
+                    var extA = a.name.split('.').pop().toLowerCase();
+                    var extB = b.name.split('.').pop().toLowerCase();
+                    return extA.localeCompare(extB);
+                };
+            }
+
+            if (sortFn) {
+                dirs.sort(sortFn);
+                files.sort(sortFn);
+                if (currentOrder === 'desc') {
+                    dirs.reverse();
+                    files.reverse();
+                }
+            }
+
+            return dirs.concat(files);
+        }
+
+        /* File management */
+        function createFolder() {
+            var name = prompt('\u30D5\u30A9\u30EB\u30C0\u540D\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044');
+            if (!name || !name.trim()) return;
+            fetch('/api/mkdir', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({storage: currentStorage, path: currentBrowsePath, name: name.trim()})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    loadDirectory(currentStorage, currentBrowsePath);
+                    refreshDashboard();
+                } else {
+                    alert(d.message || '\u30A8\u30E9\u30FC');
+                }
+            });
+        }
+
+        function deleteItem(storage, path, name) {
+            if (!confirm('"' + name + '" \u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F\n\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002')) return;
+            fetch('/api/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({storage: storage, path: path})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    loadDirectory(currentStorage, currentBrowsePath);
+                    refreshDashboard();
+                } else {
+                    alert(d.message || '\u30A8\u30E9\u30FC');
+                }
+            });
+        }
+
+        function renameItem(storage, path, currentName) {
+            var newName = prompt('\u65B0\u3057\u3044\u540D\u524D\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044', currentName);
+            if (!newName || newName.trim() === currentName) return;
+            fetch('/api/rename', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({storage: storage, path: path, new_name: newName.trim()})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    loadDirectory(currentStorage, currentBrowsePath);
+                } else {
+                    alert(d.message || '\u30A8\u30E9\u30FC');
+                }
             });
         }
 
@@ -341,7 +576,7 @@
                     renderFileList(data.items, storage);
                 })
                 .catch(function() {
-                    document.getElementById('file-list').innerHTML = '<div class="file-empty">Failed to load</div>';
+                    document.getElementById('file-list').innerHTML = '<div class="file-empty">読み込みに失敗しました</div>';
                 });
         }
 
@@ -374,36 +609,87 @@
         }
 
         function renderFileList(items, storage) {
+            currentItems = items;
             var container = document.getElementById('file-list');
             if (items.length === 0) {
-                container.innerHTML = '<div class="file-empty">Empty directory</div>';
+                container.innerHTML = '<div class="file-empty">空のフォルダです</div>';
                 return;
             }
 
-            var dirs = items.filter(function(i) { return i.type === 'dir'; });
-            var files = items.filter(function(i) { return i.type === 'file'; });
-            var sorted = dirs.concat(files);
+            var sorted = sortItems(items);
 
             var html = '';
             for (var i = 0; i < sorted.length; i++) {
                 var item = sorted[i];
                 var icon = getFileIcon(item.name, item.type);
+                var escapedPath = escapeHtml(item.path).replace(/'/g, "\\'");
+                var escapedName = escapeHtml(item.name).replace(/'/g, "\\'");
                 if (item.type === 'dir') {
-                    html += '<div class="file-item dir-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapeHtml(item.path).replace(/'/g, "\\'") + '\')">';
+                    html += '<div class="file-item dir-item" onclick="loadDirectory(\'' + storage + '\', \'' + escapedPath + '\')">';
                     html += '<span class="file-icon">' + icon + '</span>';
                     html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
-                    html += '<span class="file-meta"><span class="file-meta-size">' + item.items + ' items</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size || '') + '</span><span>' + item.items + ' 件</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '<div class="file-actions">';
+                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="名前変更">&#9998;</button>';
+                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="削除">&#128465;</button>';
+                    html += '</div>';
                     html += '</div>';
                 } else {
                     html += '<div class="file-item">';
                     html += '<span class="file-icon">' + icon + '</span>';
                     html += '<span class="file-name">' + escapeHtml(item.name) + '</span>';
                     html += '<span class="file-meta"><span class="file-meta-size">' + escapeHtml(item.size) + '</span><span>' + escapeHtml(item.modified) + '</span></span>';
+                    html += '<div class="file-actions">';
+                    html += '<a href="/api/download?storage=' + encodeURIComponent(storage) + '&path=' + encodeURIComponent(item.path) + '" class="file-dl-btn" title="ダウンロード" onclick="event.stopPropagation()">&#11015;</a>';
+                    html += '<button class="file-rename-btn" onclick="event.stopPropagation();renameItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="名前変更">&#9998;</button>';
+                    html += '<button class="file-del-btn" onclick="event.stopPropagation();deleteItem(\'' + storage + '\',\'' + escapedPath + '\',\'' + escapedName + '\')" title="削除">&#128465;</button>';
+                    html += '</div>';
                     html += '</div>';
                 }
             }
             container.innerHTML = html;
         }
+
+        /* Upload */
+        document.getElementById('upload-input').addEventListener('change', function() {
+            var files = this.files;
+            if (!files || files.length === 0) return;
+            var statusEl = document.getElementById('upload-status');
+            var total = files.length;
+            var done = 0;
+
+            statusEl.textContent = '0/' + total + ' アップロード中...';
+
+            for (var i = 0; i < files.length; i++) {
+                (function(file) {
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('storage', currentStorage);
+                    formData.append('path', currentBrowsePath);
+
+                    fetch('/api/upload', { method: 'POST', body: formData })
+                        .then(function(r) { return r.json(); })
+                        .then(function(d) {
+                            done++;
+                            if (done === total) {
+                                statusEl.textContent = total + '件 アップロード完了';
+                                setTimeout(function() { statusEl.textContent = ''; }, 3000);
+                                loadDirectory(currentStorage, currentBrowsePath);
+                                refreshDashboard();
+                            } else {
+                                statusEl.textContent = done + '/' + total + ' アップロード中...';
+                            }
+                        })
+                        .catch(function() {
+                            done++;
+                            statusEl.textContent = 'エラーが発生しました';
+                        });
+                })(files[i]);
+            }
+
+            // Reset input
+            this.value = '';
+        });
 
         loadDirectory('hot', '');
     </script>
