@@ -3,3 +3,5 @@ __pycache__/
 venv/
 .env
 settings.json
+deploy.zip
+_deploy_tmp/
